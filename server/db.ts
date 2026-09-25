@@ -1,0 +1,1016 @@
+import fs from 'fs';
+import path from 'path';
+import type {
+  Service,
+  Doctor,
+  Appointment,
+  ClinicSettings,
+  Review,
+  ContactMessage,
+  NotificationLog,
+  AvailabilityResponse
+} from '../src/types.ts';
+
+const DATA_DIR = path.resolve(process.cwd(), 'data');
+const DATA_FILE = path.join(DATA_DIR, 'hospital_data.json');
+
+interface DatabaseSchema {
+  settings: ClinicSettings;
+  doctors: Doctor[];
+  services: Service[];
+  appointments: Appointment[];
+  reviews: Review[];
+  contactMessages: ContactMessage[];
+  notifications: NotificationLog[];
+}
+
+const initialServices: Service[] = [
+  // General Dentistry
+  {
+    id: 'srv-gen-01',
+    slug: 'dental-consultation',
+    name: 'Comprehensive Dental Consultation',
+    category: 'General Dentistry',
+    shortDescription: 'Detailed oral examination, digital diagnostics, and personalized treatment planning.',
+    whoNeedsIt: 'Anyone experiencing tooth discomfort, gum sensitivity, or due for a routine clinical evaluation.',
+    whatItInvolves: [
+      'Visual examination of all teeth, gums, and oral soft tissues',
+      'Digital diagnostic intraoral assessment',
+      'Bite alignment and occlusion check',
+      'Discussion of findings and treatment options tailored to your oral health'
+    ],
+    benefits: [
+      'Early detection of decay, fractures, or gum inflammation',
+      'Transparent discussion of treatment priorities',
+      'Preventive guidance tailored to your lifestyle'
+    ],
+    faqs: [
+      {
+        question: 'How long does a comprehensive consultation take?',
+        answer: 'Typically between 20 to 30 minutes, allowing ample time for examination and answering all your questions.'
+      },
+      {
+        question: 'Will any treatment be performed during the first visit?',
+        answer: 'Immediate pain relief can be addressed if needed; otherwise, treatment can be planned and scheduled at your convenience.'
+      }
+    ],
+    isFeatured: true,
+    iconName: 'Stethoscope',
+    durationMinutes: 30
+  },
+  {
+    id: 'srv-gen-02',
+    slug: 'teeth-cleaning-scaling',
+    name: 'Teeth Cleaning & Scaling & Polishing',
+    category: 'General Dentistry',
+    shortDescription: 'Ultrasonic removal of plaque, tartar, and surface stains to maintain healthy gums and fresh breath.',
+    whoNeedsIt: 'Individuals with tartar build-up, bleeding during brushing, mild staining, or due for 6-month preventive care.',
+    whatItInvolves: [
+      'Ultrasonic plaque and calculus removal above and below the gumline',
+      'Subgingival irrigation if indicated',
+      'Gentle tooth polishing with prophy paste to smooth enamel surfaces'
+    ],
+    benefits: [
+      'Halts early gingivitis and gum swelling',
+      'Removes stubborn tea, coffee, and tobacco stains',
+      'Supports long-term tooth retention'
+    ],
+    faqs: [
+      {
+        question: 'Does professional teeth scaling weaken the enamel?',
+        answer: 'No. Modern ultrasonic scaling gently vibrates away hardened tartar deposits without damaging the tooth enamel.'
+      },
+      {
+        question: 'How often should I get my teeth cleaned?',
+        answer: 'Most dentists advise professional cleaning once every 6 months depending on individual oral hygiene and tartar propensity.'
+      }
+    ],
+    isFeatured: true,
+    iconName: 'Sparkles',
+    durationMinutes: 30
+  },
+  {
+    id: 'srv-gen-03',
+    slug: 'tooth-coloured-fillings',
+    name: 'Tooth-Coloured Composite Fillings',
+    category: 'General Dentistry',
+    shortDescription: 'Biocompatible, shade-matched resin restorations that seamlessly repair cavities and chipped edges.',
+    whoNeedsIt: 'Patients with localized tooth decay, minor enamel fractures, or replacing older amalgam fillings.',
+    whatItInvolves: [
+      'Gentle removal of decayed or weakened tooth structure',
+      'Etching and application of high-strength dental bonding agents',
+      'Layered placement of aesthetic composite resin matched to your natural tooth shade',
+      'Light curing, contouring, and high-shine polish'
+    ],
+    benefits: [
+      'Matches natural tooth appearance completely',
+      'Preserves maximum healthy tooth structure',
+      'Bonds directly to enamel for structural integrity'
+    ],
+    faqs: [
+      {
+        question: 'Can I eat immediately after a composite filling?',
+        answer: 'Because the composite resin is cured instantly with a specialized dental light, you can eat once local numbness subsides.'
+      }
+    ],
+    isFeatured: false,
+    iconName: 'ShieldCheck',
+    durationMinutes: 45
+  },
+  // Root Canal & Restorative Dentistry
+  {
+    id: 'srv-rct-01',
+    slug: 'root-canal-treatment',
+    name: 'Modern Root Canal Treatment (Painless RCT)',
+    category: 'Root Canal & Restorative Dentistry',
+    shortDescription: 'Advanced endodontic therapy using rotary instruments and apex locators to save severely damaged or infected teeth.',
+    whoNeedsIt: 'Patients suffering from intense throbbing tooth pain, prolonged sensitivity to hot/cold, deep decay reaching the pulp, or swelling.',
+    whatItInvolves: [
+      'Adequate local anesthesia for patient comfort',
+      'Access to the pulp chamber and careful extirpation of infected tissue',
+      'Precision shaping and cleaning of root canals using rotary files and antiseptic irrigants',
+      'Hermetic 3D obturation (filling) of the canals with gutta-percha',
+      'Post-RCT core restoration'
+    ],
+    benefits: [
+      'Eliminates infection while saving your natural tooth from extraction',
+      'Relieves acute toothache and prevents spread of abscess',
+      'Restores normal chewing ability and aesthetic function'
+    ],
+    faqs: [
+      {
+        question: 'Is root canal treatment painful?',
+        answer: 'With modern anesthesia techniques and rotary endodontics, the procedure is carried out with minimal discomfort, similar to getting a standard filling.'
+      },
+      {
+        question: 'Do I need a crown after a root canal?',
+        answer: 'In most back teeth (molars and premolars), a crown is strongly recommended to protect the brittle, treated tooth from biting fractures.'
+      }
+    ],
+    isFeatured: true,
+    iconName: 'Activity',
+    durationMinutes: 60
+  },
+  {
+    id: 'srv-rct-02',
+    slug: 'dental-crowns-bridges',
+    name: 'Precision Dental Crowns & Bridges',
+    category: 'Root Canal & Restorative Dentistry',
+    shortDescription: 'Durable ceramic, zirconia, and porcelain crowns custom-fabricated to restore broken teeth or replace missing units.',
+    whoNeedsIt: 'Teeth weakened by large fillings, root canal treated teeth, cracked teeth, or spaces left by missing teeth.',
+    whatItInvolves: [
+      'Conservative preparation and tooth reduction under magnification',
+      'High-precision digital or elastomeric impressions',
+      'Temporary protection while the dental laboratory custom-mills the prosthesis',
+      'Try-in, bite verification, and permanent clinical cementation'
+    ],
+    benefits: [
+      'High fracture resistance and masticatory strength',
+      'Natural translucency and shade matching',
+      'Prevents shifting of adjacent teeth'
+    ],
+    faqs: [
+      {
+        question: 'What materials are used for dental crowns?',
+        answer: 'We provide monolithic zirconia, porcelain-fused-to-metal (PFM), and all-ceramic crowns based on bite load and aesthetic requirements.'
+      }
+    ],
+    isFeatured: true,
+    iconName: 'Layers',
+    durationMinutes: 45
+  },
+  // Orthodontics
+  {
+    id: 'srv-ortho-01',
+    slug: 'dental-braces-teeth-straightening',
+    name: 'Orthodontic Braces & Teeth Straightening',
+    category: 'Orthodontics',
+    shortDescription: 'Comprehensive orthodontic correction for crowded, spaced, rotated, or misaligned teeth in teens and adults.',
+    whoNeedsIt: 'Individuals with crooked teeth, overlapping, spacing, overbites, underbites, or chewing difficulties.',
+    whatItInvolves: [
+      'Orthodontic assessment, cephalometric analysis, and study models',
+      'Selection of metal or tooth-toned ceramic brackets',
+      'Regular controlled archwire adjustments every 4 to 6 weeks',
+      'Post-treatment retention phase to lock in your alignment'
+    ],
+    benefits: [
+      'Significantly easier to brush and floss, reducing future cavity risk',
+      'Balanced chewing forces and jaw joint comfort',
+      'Harmonious smile aesthetics and enhanced confidence'
+    ],
+    faqs: [
+      {
+        question: 'Can adults get dental braces?',
+        answer: 'Yes! Healthy teeth can be orthodontically repositioned at any age. We treat both adolescents and adult patients.'
+      }
+    ],
+    isFeatured: true,
+    iconName: 'Smile',
+    durationMinutes: 45
+  },
+  // Dental Implants & Tooth Replacement
+  {
+    id: 'srv-implants-01',
+    slug: 'dental-implants',
+    name: 'Dental Implants & Tooth Replacement',
+    category: 'Dental Implants & Tooth Replacement',
+    shortDescription: 'Permanent titanium root replacements anchored in the jawbone to provide natural look, feel, and function.',
+    whoNeedsIt: 'Patients missing one, multiple, or all teeth looking for a fixed, long-lasting alternative to removable dentures.',
+    whatItInvolves: [
+      'Clinical bone evaluation and digital radiographic planning',
+      'Precise surgical placement of the biocompatible titanium fixture',
+      'Osseointegration healing period',
+      'Custom abutment placement and final crown/bridge attachment'
+    ],
+    benefits: [
+      'Closest functional replacement to a healthy natural tooth',
+      'Preserves jawbone density and facial contours',
+      'Does not require grinding adjacent healthy teeth'
+    ],
+    faqs: [
+      {
+        question: 'How long do dental implants last?',
+        answer: 'With proper oral hygiene and regular dental checkups, implants can function effectively for decades or even a lifetime.'
+      }
+    ],
+    isFeatured: true,
+    iconName: 'Anchor',
+    durationMinutes: 60
+  },
+  {
+    id: 'srv-implants-02',
+    slug: 'complete-partial-dentures',
+    name: 'Complete & Partial Dentures',
+    category: 'Dental Implants & Tooth Replacement',
+    shortDescription: 'Custom-crafted prosthetic solutions designed for optimal suction, chewing efficiency, and natural speech.',
+    whoNeedsIt: 'Elderly patients or individuals with extensive tooth loss desiring a cost-effective, non-surgical restorative solution.',
+    whatItInvolves: [
+      'Detailed anatomical tissue impressions',
+      'Bite registration and jaw relationship recording',
+      'Wax try-in to inspect smile aesthetics and tooth shade',
+      'Final prosthesis processing and personalized adjustments'
+    ],
+    benefits: [
+      'Restores the ability to comfortably chew standard food',
+      'Supports facial muscles, preventing sunken-cheek appearance',
+      'Easy to remove and maintain daily'
+    ],
+    faqs: [
+      {
+        question: 'How do I care for my dentures?',
+        answer: 'Clean dentures daily with a soft brush and non-abrasive cleanser, and store them in clean water overnight.'
+      }
+    ],
+    isFeatured: false,
+    iconName: 'Grid',
+    durationMinutes: 45
+  },
+  // Cosmetic Dentistry
+  {
+    id: 'srv-cosm-01',
+    slug: 'professional-teeth-whitening',
+    name: 'In-Clinic Professional Teeth Whitening',
+    category: 'Cosmetic Dentistry',
+    shortDescription: 'Controlled clinical whitening treatments designed to safely lighten enamel discoloration by several shades.',
+    whoNeedsIt: 'People with aged enamel, coffee/tea/smoking stains, or preparing for special occasions like weddings.',
+    whatItInvolves: [
+      'Protective barrier application on the gums and lips',
+      'Application of dental-grade peroxide whitening gel',
+      'Specialized LED activation in controlled 15-minute cycles',
+      'Post-treatment sensitivity prevention application'
+    ],
+    benefits: [
+      'Noticeably brighter smile in a single session',
+      'Clinically supervised to protect enamel and gum health',
+      'Far safer and more effective than generic over-the-counter kits'
+    ],
+    faqs: [
+      {
+        question: 'Will teeth whitening make my teeth sensitive?',
+        answer: 'Some patients experience mild temporary sensitivity for 24 to 48 hours, which resolves quickly with desensitizing toothpaste.'
+      }
+    ],
+    isFeatured: true,
+    iconName: 'Sun',
+    durationMinutes: 45
+  },
+  // Children's Dentistry
+  {
+    id: 'srv-peds-01',
+    slug: 'pediatric-children-dental-care',
+    name: 'Children’s Preventive & Gentle Dentistry',
+    category: 'Children\'s Dentistry',
+    shortDescription: 'Child-friendly oral health care, cavity prevention, fluoride treatments, and gentle primary tooth fillings.',
+    whoNeedsIt: 'Infants, toddlers, and school-aged children needing routine preventive checks or treatment for milk tooth cavities.',
+    whatItInvolves: [
+      'Friendly, anxiety-free chairside orientation',
+      'Gentle plaque removal and pit-and-fissure sealants on back molars',
+      'Topical fluoride varnish application for enamel hardening',
+      'Parental oral hygiene guidance and diet counseling'
+    ],
+    benefits: [
+      'Establishes positive, lifelong dental habits early',
+      'Prevents premature loss of baby teeth which guide permanent teeth',
+      'Pain-free preventive care minimizes need for complex treatments'
+    ],
+    faqs: [
+      {
+        question: 'Why treat milk teeth if they will fall out anyway?',
+        answer: 'Milk teeth maintain space for permanent teeth, enable proper nutrition and speech development, and untreated decay can cause severe pain and infection.'
+      }
+    ],
+    isFeatured: true,
+    iconName: 'Heart',
+    durationMinutes: 30
+  },
+  // Gum & Periodontal Care
+  {
+    id: 'srv-perio-01',
+    slug: 'periodontal-gum-disease-treatment',
+    name: 'Periodontal Care & Gum Disease Management',
+    category: 'Gum & Periodontal Care',
+    shortDescription: 'Comprehensive therapy to control gingival infections, bleeding gums, bone loss, and periodontal pockets.',
+    whoNeedsIt: 'Patients with persistent gum swelling, bleeding during brushing, loose teeth, or bad breath.',
+    whatItInvolves: [
+      'Periodontal charting measuring pocket depths',
+      'Deep subgingival scaling and root planing',
+      'Local antimicrobial irrigation or laser gum therapy',
+      'Personalized oral hygiene regimen and maintenance intervals'
+    ],
+    benefits: [
+      'Arrests chronic bone destruction and tooth mobility',
+      'Stops gum bleeding and bad breath',
+      'Improves systemic health connections (diabetes and cardiovascular support)'
+    ],
+    faqs: [
+      {
+        question: 'Can gum disease be cured?',
+        answer: 'Early gingivitis is fully reversible. Advanced periodontitis cannot restore lost bone, but can be stabilized and halted with proper clinical care.'
+      }
+    ],
+    isFeatured: false,
+    iconName: 'Droplet',
+    durationMinutes: 45
+  },
+  // Oral Surgery
+  {
+    id: 'srv-surg-01',
+    slug: 'wisdom-tooth-removal',
+    name: 'Wisdom Tooth Removal & Minor Oral Surgery',
+    category: 'Oral Surgery',
+    shortDescription: 'Safe, gentle extraction of impacted, painful, or misaligned third molars with modern surgical protocols.',
+    whoNeedsIt: 'Patients with impacted wisdom teeth causing repeated pericoronitis, jaw stiffness, pain, or crowding.',
+    whatItInvolves: [
+      'Pre-operative radiographic assessment of roots and nerve proximity',
+      'Profound local anesthesia ensuring comfortable painless extraction',
+      'Careful minimally invasive tooth sectioning and removal',
+      'Resorbable sutures and detailed post-extraction instructions'
+    ],
+    benefits: [
+      'Permanent relief from recurrent wisdom tooth infections',
+      'Protects adjacent second molars from decay or root resorption',
+      'Smooth, supervised healing protocol'
+    ],
+    faqs: [
+      {
+        question: 'How many days does recovery take after wisdom tooth removal?',
+        answer: 'Most patients return to regular routine within 2 to 3 days, following the soft food diet and warm saline rinses provided.'
+      }
+    ],
+    isFeatured: true,
+    iconName: 'Crosshair',
+    durationMinutes: 45
+  }
+];
+
+const initialDoctors: Doctor[] = [
+  {
+    id: 'doc-01',
+    name: 'Dr. Govardhan S N',
+    qualification: 'BDS',
+    specialization: 'Super Speciality Dental Surgeon & Restorative Care',
+    bio: 'Dr. Govardhan S N, BDS, brings dedicated clinical expertise to Chitradurga with a focus on advanced restorative dentistry, endodontic care, prosthodontics, and patient-centred treatment.',
+    photo: '/src/assets/images/doctor_govardhan_sn_1790342727377.jpg',
+    daysAvailable: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+    morningStart: '09:30',
+    morningEnd: '13:30',
+    eveningStart: '16:30',
+    eveningEnd: '20:30',
+    isActive: true
+  },
+  {
+    id: 'doc-02',
+    name: 'Dr. Shilpa Govardhan',
+    qualification: 'BDS',
+    specialization: 'Dental Surgeon, Cosmetic & Preventive Dentistry',
+    bio: 'Dr. Shilpa Govardhan, BDS, specializes in gentle family dental care, preventive oral health, cosmetic smile enhancements, and pediatric dentistry with a warm, compassionate approach.',
+    photo: '/src/assets/images/doctor_shilpa_govardhan_1790342741294.jpg',
+    daysAvailable: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+    morningStart: '09:30',
+    morningEnd: '13:30',
+    eveningStart: '16:30',
+    eveningEnd: '20:30',
+    isActive: true
+  }
+];
+
+const initialSettings: ClinicSettings = {
+  name: 'Durga Super Speciality Dental Hospital',
+  tagline: 'Advanced Dental Care. Comfortable Smiles.',
+  address: 'Holalkere Road, near Neelakanteshwara Temple, Chitradurga, Karnataka – 577501',
+  street: 'Holalkere Road',
+  landmark: 'Near Neelakanteshwara Temple',
+  city: 'Chitradurga',
+  state: 'Karnataka',
+  pincode: '577501',
+  phone: '098453 44323',
+  phoneRaw: '+919845344323',
+  email: 'drgovardhan@gmail.com',
+  googleMapsUrl: 'https://maps.google.com/?q=Durga+Super+Speciality+Dental+Hospital+Holalkere+Road+Chitradurga+Karnataka+577501',
+  workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  morningSession: { start: '09:30', end: '13:30' },
+  eveningSession: { start: '16:30', end: '20:30' },
+  sundayOpen: false,
+  slotIntervalMinutes: 30,
+  blockedDates: [],
+  blockedSlots: []
+};
+
+const initialReviews: Review[] = [
+  {
+    id: 'rev-01',
+    authorName: 'Ramesh K.',
+    rating: 5,
+    comment: 'Dr. Govardhan explained the root canal procedure clearly and performed it with absolute care. The clinic maintains top-notch hygiene and sterilisation. Highly recommended in Chitradurga.',
+    date: '2026-08-14',
+    source: 'Google Review',
+    isApproved: true
+  },
+  {
+    id: 'rev-02',
+    authorName: 'Anitha Prashanth',
+    rating: 5,
+    comment: 'Dr. Shilpa is very gentle and patient with children. My daughter was scared of the dental chair initially, but the doctor made her feel completely at ease. Very clean clinic environment.',
+    date: '2026-07-29',
+    source: 'Google Review',
+    isApproved: true
+  },
+  {
+    id: 'rev-03',
+    authorName: 'Mallikarjun S.',
+    rating: 5,
+    comment: 'Prompt appointment scheduling, no unnecessary waiting, and transparent consultation. The crown fitting was perfect from day one. Best dental hospital in the area.',
+    date: '2026-06-18',
+    source: 'Google Review',
+    isApproved: true
+  },
+  {
+    id: 'rev-04',
+    authorName: 'Pooja Patil',
+    rating: 5,
+    comment: 'Underwent scaling and tooth filling here. Both doctors are very knowledgeable and treat patients with genuine care. Located right on Holalkere Road with easy access.',
+    date: '2026-05-02',
+    source: 'Google Review',
+    isApproved: true
+  }
+];
+
+const initialAppointments: Appointment[] = [
+  {
+    id: 'apt-001',
+    referenceNumber: '#DURG-2026-00101',
+    patientName: 'Sunil Kumar',
+    phone: '09845112233',
+    email: 'sunil.kumar@example.com',
+    serviceId: 'srv-rct-01',
+    serviceName: 'Modern Root Canal Treatment (Painless RCT)',
+    doctorId: 'doc-01',
+    doctorName: 'Dr. Govardhan S N',
+    appointmentDate: '2026-09-28',
+    appointmentTime: '10:30 AM',
+    isNewPatient: true,
+    reason: 'Severe toothache in lower right molar',
+    notes: 'Follow up after primary clinical assessment',
+    status: 'Confirmed',
+    createdAt: '2026-09-24T10:00:00.000Z',
+    updatedAt: '2026-09-24T11:15:00.000Z'
+  },
+  {
+    id: 'apt-002',
+    referenceNumber: '#DURG-2026-00102',
+    patientName: 'Kavitha M.',
+    phone: '09876543210',
+    email: 'kavitha.m@example.com',
+    serviceId: 'srv-gen-02',
+    serviceName: 'Teeth Cleaning & Scaling & Polishing',
+    doctorId: 'doc-02',
+    doctorName: 'Dr. Shilpa Govardhan',
+    appointmentDate: '2026-09-28',
+    appointmentTime: '11:30 AM',
+    isNewPatient: false,
+    reason: '6-month routine cleaning and checkup',
+    notes: '',
+    status: 'Pending',
+    createdAt: '2026-09-25T08:30:00.000Z',
+    updatedAt: '2026-09-25T08:30:00.000Z'
+  }
+];
+
+class Database {
+  private data: DatabaseSchema;
+
+  constructor() {
+    this.data = this.loadData();
+  }
+
+  private loadData(): DatabaseSchema {
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+
+      if (fs.existsSync(DATA_FILE)) {
+        const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+        return JSON.parse(raw);
+      }
+    } catch (err) {
+      console.warn('Failed to load database file, creating fresh initial data:', err);
+    }
+
+    const defaultData: DatabaseSchema = {
+      settings: initialSettings,
+      doctors: initialDoctors,
+      services: initialServices,
+      appointments: initialAppointments,
+      reviews: initialReviews,
+      contactMessages: [],
+      notifications: []
+    };
+
+    this.saveData(defaultData);
+    return defaultData;
+  }
+
+  private saveData(data: DatabaseSchema) {
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('Failed to save database file:', err);
+    }
+  }
+
+  // Settings
+  getSettings(): ClinicSettings {
+    return this.data.settings;
+  }
+
+  updateSettings(newSettings: Partial<ClinicSettings>): ClinicSettings {
+    this.data.settings = { ...this.data.settings, ...newSettings };
+    this.saveData(this.data);
+    return this.data.settings;
+  }
+
+  // Doctors
+  getDoctors(): Doctor[] {
+    return this.data.doctors;
+  }
+
+  getDoctorById(id: string): Doctor | undefined {
+    return this.data.doctors.find((d) => d.id === id);
+  }
+
+  updateDoctor(id: string, updates: Partial<Doctor>): Doctor | null {
+    const idx = this.data.doctors.findIndex((d) => d.id === id);
+    if (idx === -1) return null;
+    this.data.doctors[idx] = { ...this.data.doctors[idx], ...updates };
+    this.saveData(this.data);
+    return this.data.doctors[idx];
+  }
+
+  addDoctor(doc: Omit<Doctor, 'id'>): Doctor {
+    const newDoc: Doctor = {
+      ...doc,
+      id: `doc-${Date.now().toString(36)}`
+    };
+    this.data.doctors.push(newDoc);
+    this.saveData(this.data);
+    return newDoc;
+  }
+
+  deleteDoctor(id: string): boolean {
+    const initialLen = this.data.doctors.length;
+    this.data.doctors = this.data.doctors.filter((d) => d.id !== id);
+    if (this.data.doctors.length !== initialLen) {
+      this.saveData(this.data);
+      return true;
+    }
+    return false;
+  }
+
+  // Services
+  getServices(): Service[] {
+    return this.data.services;
+  }
+
+  getServiceById(id: string): Service | undefined {
+    return this.data.services.find((s) => s.id === id || s.slug === id);
+  }
+
+  updateService(id: string, updates: Partial<Service>): Service | null {
+    const idx = this.data.services.findIndex((s) => s.id === id);
+    if (idx === -1) return null;
+    this.data.services[idx] = { ...this.data.services[idx], ...updates };
+    this.saveData(this.data);
+    return this.data.services[idx];
+  }
+
+  addService(svc: Omit<Service, 'id'>): Service {
+    const newSvc: Service = {
+      ...svc,
+      id: `srv-${Date.now().toString(36)}`
+    };
+    this.data.services.push(newSvc);
+    this.saveData(this.data);
+    return newSvc;
+  }
+
+  deleteService(id: string): boolean {
+    const initialLen = this.data.services.length;
+    this.data.services = this.data.services.filter((s) => s.id !== id);
+    if (this.data.services.length !== initialLen) {
+      this.saveData(this.data);
+      return true;
+    }
+    return false;
+  }
+
+  // Appointments
+  getAppointments(): Appointment[] {
+    return this.data.appointments;
+  }
+
+  getAppointmentById(id: string): Appointment | undefined {
+    return this.data.appointments.find((a) => a.id === id || a.referenceNumber === id);
+  }
+
+  createAppointment(payload: {
+    patientName: string;
+    phone: string;
+    email: string;
+    serviceId: string;
+    doctorId: string;
+    appointmentDate: string;
+    appointmentTime: string;
+    isNewPatient: boolean;
+    reason: string;
+    notes?: string;
+  }): { appointment?: Appointment; error?: string } {
+    const service = this.getServiceById(payload.serviceId);
+    if (!service) {
+      return { error: 'Invalid service selected.' };
+    }
+
+    const doctor = this.getDoctorById(payload.doctorId);
+    if (!doctor) {
+      return { error: 'Invalid doctor selected.' };
+    }
+
+    // Date validation
+    const apptDateObj = new Date(payload.appointmentDate + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (apptDateObj < today) {
+      return { error: 'Appointments cannot be booked in the past.' };
+    }
+
+    const dayName = apptDateObj.toLocaleDateString('en-US', { weekday: 'long' });
+    const isWorkingDay = this.data.settings.workingDays.includes(dayName);
+    if (!isWorkingDay) {
+      return { error: `The clinic is closed on ${dayName}s.` };
+    }
+
+    if (this.data.settings.blockedDates.includes(payload.appointmentDate)) {
+      return { error: 'The selected date is blocked for clinic holiday or maintenance.' };
+    }
+
+    // Check double-booking for the same doctor at the same date and time
+    const existing = this.data.appointments.find(
+      (a) =>
+        a.doctorId === payload.doctorId &&
+        a.appointmentDate === payload.appointmentDate &&
+        a.appointmentTime === payload.appointmentTime &&
+        a.status !== 'Cancelled'
+    );
+
+    if (existing) {
+      return {
+        error: `This time slot (${payload.appointmentTime}) is already booked for ${doctor.name}. Please select an alternative slot.`
+      };
+    }
+
+    // Generate unique reference number: #DURG-YYYY-XXXXX
+    const year = new Date().getFullYear();
+    const count = this.data.appointments.length + 101;
+    const refNum = `#DURG-${year}-${count.toString().padStart(5, '0')}`;
+
+    const newAppointment: Appointment = {
+      id: `apt-${Date.now()}`,
+      referenceNumber: refNum,
+      patientName: payload.patientName.trim(),
+      phone: payload.phone.trim(),
+      email: payload.email.trim(),
+      serviceId: service.id,
+      serviceName: service.name,
+      doctorId: doctor.id,
+      doctorName: doctor.name,
+      appointmentDate: payload.appointmentDate,
+      appointmentTime: payload.appointmentTime,
+      isNewPatient: payload.isNewPatient,
+      reason: payload.reason ? payload.reason.trim() : 'Consultation',
+      notes: payload.notes ? payload.notes.trim() : '',
+      status: 'Pending',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    this.data.appointments.unshift(newAppointment);
+
+    // Record notification for admin and confirmation log
+    this.addNotification({
+      type: 'appointment_created',
+      recipient: this.data.settings.email,
+      recipientType: 'admin',
+      subject: `New Appointment Request: ${refNum} - ${newAppointment.patientName}`,
+      content: `Patient ${newAppointment.patientName} (${newAppointment.phone}) has requested an appointment for ${newAppointment.serviceName} with ${newAppointment.doctorName} on ${newAppointment.appointmentDate} at ${newAppointment.appointmentTime}.`
+    });
+
+    this.saveData(this.data);
+    return { appointment: newAppointment };
+  }
+
+  updateAppointmentStatus(
+    id: string,
+    status: Appointment['status'],
+    notes?: string
+  ): Appointment | null {
+    const apt = this.data.appointments.find((a) => a.id === id);
+    if (!apt) return null;
+
+    apt.status = status;
+    if (notes !== undefined) {
+      apt.notes = notes;
+    }
+    apt.updatedAt = new Date().toISOString();
+
+    // Trigger notification
+    if (status === 'Confirmed') {
+      this.addNotification({
+        type: 'appointment_confirmed',
+        recipient: apt.email || apt.phone,
+        recipientType: 'patient',
+        subject: `Appointment Confirmed: ${apt.referenceNumber} - Durga Super Speciality Dental Hospital`,
+        content: `Dear ${apt.patientName}, your appointment with ${apt.doctorName} for ${apt.serviceName} on ${apt.appointmentDate} at ${apt.appointmentTime} is confirmed. Location: Holalkere Road, near Neelakanteshwara Temple, Chitradurga.`
+      });
+    } else if (status === 'Cancelled') {
+      this.addNotification({
+        type: 'appointment_cancelled',
+        recipient: apt.email || apt.phone,
+        recipientType: 'patient',
+        subject: `Appointment Update: ${apt.referenceNumber} - Durga Super Speciality Dental Hospital`,
+        content: `Dear ${apt.patientName}, your appointment request ${apt.referenceNumber} has been cancelled. Please contact 098453 44323 if you would like to reschedule.`
+      });
+    }
+
+    this.saveData(this.data);
+    return apt;
+  }
+
+  rescheduleAppointment(
+    id: string,
+    newDate: string,
+    newTime: string,
+    newDoctorId?: string
+  ): { appointment?: Appointment; error?: string } {
+    const apt = this.data.appointments.find((a) => a.id === id);
+    if (!apt) return { error: 'Appointment not found.' };
+
+    const targetDocId = newDoctorId || apt.doctorId;
+    const doctor = this.getDoctorById(targetDocId);
+    if (!doctor) return { error: 'Doctor not found.' };
+
+    // Check double-booking
+    const existing = this.data.appointments.find(
+      (a) =>
+        a.id !== id &&
+        a.doctorId === targetDocId &&
+        a.appointmentDate === newDate &&
+        a.appointmentTime === newTime &&
+        a.status !== 'Cancelled'
+    );
+
+    if (existing) {
+      return { error: 'Selected slot is already booked.' };
+    }
+
+    apt.appointmentDate = newDate;
+    apt.appointmentTime = newTime;
+    apt.doctorId = doctor.id;
+    apt.doctorName = doctor.name;
+    apt.updatedAt = new Date().toISOString();
+
+    this.saveData(this.data);
+    return { appointment: apt };
+  }
+
+  // Availability Calculation
+  getAvailability(dateStr: string, doctorId: string): AvailabilityResponse {
+    const doctor = this.getDoctorById(doctorId);
+    const docName = doctor ? doctor.name : 'Selected Doctor';
+
+    const dateObj = new Date(dateStr + 'T00:00:00');
+    const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+
+    const isOpenDay = this.data.settings.workingDays.includes(dayName);
+    const isBlockedDate = this.data.settings.blockedDates.includes(dateStr);
+
+    if (!isOpenDay || isBlockedDate) {
+      return {
+        date: dateStr,
+        doctorId,
+        doctorName: docName,
+        isOpenDay,
+        isBlockedDate,
+        slots: []
+      };
+    }
+
+    // Default morning & evening slots
+    const allSlots: string[] = [
+      // Morning
+      '09:30 AM',
+      '10:00 AM',
+      '10:30 AM',
+      '11:00 AM',
+      '11:30 AM',
+      '12:00 PM',
+      '12:30 PM',
+      '01:00 PM',
+      // Evening
+      '04:30 PM',
+      '05:00 PM',
+      '05:30 PM',
+      '06:00 PM',
+      '06:30 PM',
+      '07:00 PM',
+      '07:30 PM',
+      '08:00 PM'
+    ];
+
+    // Find all active booked appointments for this date and doctor
+    const bookedAppointments = this.data.appointments.filter(
+      (a) =>
+        a.appointmentDate === dateStr &&
+        a.doctorId === doctorId &&
+        a.status !== 'Cancelled'
+    );
+    const bookedTimes = new Set(bookedAppointments.map((a) => a.appointmentTime));
+
+    // Also check blocked slots in settings
+    const blockedSlots = this.data.settings.blockedSlots.filter(
+      (b) => b.date === dateStr && (!b.doctorId || b.doctorId === doctorId)
+    );
+    const blockedTimes = new Set(blockedSlots.map((b) => b.time));
+
+    // If date is today, disable past times
+    const now = new Date();
+    const isToday = dateObj.toDateString() === now.toDateString();
+
+    const slots = allSlots.map((time) => {
+      let isAvailable = true;
+      let reason: string | undefined = undefined;
+
+      if (bookedTimes.has(time)) {
+        isAvailable = false;
+        reason = 'Booked';
+      } else if (blockedTimes.has(time)) {
+        isAvailable = false;
+        reason = 'Unavailable';
+      } else if (isToday) {
+        // Compare with current hour
+        const [timePart, modifier] = time.split(' ');
+        let [hours, minutes] = timePart.split(':').map(Number);
+        if (modifier === 'PM' && hours < 12) hours += 12;
+        if (modifier === 'AM' && hours === 12) hours = 0;
+
+        const slotDate = new Date();
+        slotDate.setHours(hours, minutes, 0, 0);
+
+        if (slotDate <= now) {
+          isAvailable = false;
+          reason = 'Time Passed';
+        }
+      }
+
+      return {
+        time,
+        isAvailable,
+        reason
+      };
+    });
+
+    return {
+      date: dateStr,
+      doctorId,
+      doctorName: docName,
+      isOpenDay: true,
+      isBlockedDate: false,
+      slots
+    };
+  }
+
+  // Reviews
+  getReviews(): Review[] {
+    return this.data.reviews;
+  }
+
+  addReview(review: Omit<Review, 'id' | 'isApproved'>): Review {
+    const newRev: Review = {
+      ...review,
+      id: `rev-${Date.now()}`,
+      isApproved: true
+    };
+    this.data.reviews.unshift(newRev);
+    this.saveData(this.data);
+    return newRev;
+  }
+
+  updateReview(id: string, updates: Partial<Review>): Review | null {
+    const idx = this.data.reviews.findIndex((r) => r.id === id);
+    if (idx === -1) return null;
+    this.data.reviews[idx] = { ...this.data.reviews[idx], ...updates };
+    this.saveData(this.data);
+    return this.data.reviews[idx];
+  }
+
+  deleteReview(id: string): boolean {
+    const initialLen = this.data.reviews.length;
+    this.data.reviews = this.data.reviews.filter((r) => r.id !== id);
+    if (this.data.reviews.length !== initialLen) {
+      this.saveData(this.data);
+      return true;
+    }
+    return false;
+  }
+
+  // Contact Messages
+  getContactMessages(): ContactMessage[] {
+    return this.data.contactMessages;
+  }
+
+  addContactMessage(msg: Omit<ContactMessage, 'id' | 'createdAt' | 'status'>): ContactMessage {
+    const newMsg: ContactMessage = {
+      ...msg,
+      id: `msg-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      status: 'Unread'
+    };
+    this.data.contactMessages.unshift(newMsg);
+
+    this.addNotification({
+      type: 'contact_received',
+      recipient: this.data.settings.email,
+      recipientType: 'admin',
+      subject: `New Message from ${newMsg.name}: ${newMsg.subject || 'Patient Inquiry'}`,
+      content: `Message: ${newMsg.message}\nPhone: ${newMsg.phone}\nEmail: ${newMsg.email}`
+    });
+
+    this.saveData(this.data);
+    return newMsg;
+  }
+
+  // Notifications
+  getNotifications(): NotificationLog[] {
+    return this.data.notifications;
+  }
+
+  addNotification(notif: Omit<NotificationLog, 'id' | 'createdAt' | 'status'>): NotificationLog {
+    const newNotif: NotificationLog = {
+      ...notif,
+      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      createdAt: new Date().toISOString(),
+      status: 'Sent'
+    };
+    this.data.notifications.unshift(newNotif);
+    // Keep max 100 notifications
+    if (this.data.notifications.length > 100) {
+      this.data.notifications = this.data.notifications.slice(0, 100);
+    }
+    return newNotif;
+  }
+}
+
+export const db = new Database();

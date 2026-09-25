@@ -1,0 +1,8 @@
+{
+  "name": "Durga Super Speciality Dental Hospital",
+  "description": "Premium dental care and super speciality dental hospital in Chitradurga, Karnataka. Advanced treatments, modern technology, and online appointment booking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
